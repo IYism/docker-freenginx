@@ -1,0 +1,51 @@
+# FreeNGINX Docker Image
+
+Built on **Rocky Linux 9**, this repository provides a custom Docker image for FreeNGINX, designed for high-performance web applications. It supports Lua scripting, PCRE2, and HTTP/3 with QUIC (via OpenSSL). 
+
+## Features
+
+- **Lua scripting** via LuaJIT and ngx_lua module, allowing high-performance dynamic request handling and NGINX configuration.
+- **PCRE2 support** for enhanced regular expression capabilities.
+- **QUIC and HTTP/3** support, ensuring faster, reliable connections with modern internet protocols using OpenSSL.
+
+## Components
+
+* ​**FreeNGINX**​: Version `1.27.4`
+* ​**LuaJIT**​: Version `2.1-20240815`
+* ​**PCRE2**​: Version `10.44`
+* ​**OpenSSL**​: Version `3.3.2`
+* **zlib**: Version `1.3.1`
+* ​**lua-nginx-module**​: Version `0.10.27`
+* ​**lua-resty-core**​: Version `0.1.29`
+* ​**lua-resty-lrucache**​: Version `0.14`
+  
+## Quick Start
+
+### Build the Docker Image
+
+Build the Docker image locally:
+```sh
+docker build -t freenginx:latest .
+```
+
+### Run the Container
+
+You can run the FreeNGINX container using the following command:
+```sh
+docker run -d -p 80:80 -p 443:443 --name freenginx freenginx:latest
+```
+
+This will start FreeNGINX with the default configuration.
+
+### Custom NGINX Configuration
+
+You can customize the NGINX configuration by mounting your own configuration files into the container:
+```sh
+docker run -d -v /path/to/your/nginx.conf:/etc/nginx/nginx.conf --name freenginx freenginx:latest
+```
+
+You can also include custom Lua scripts, or other configuration options as needed.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues, pull requests, or suggestions.
