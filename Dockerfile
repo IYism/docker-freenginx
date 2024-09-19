@@ -27,7 +27,7 @@ ENV RESTY_LOCK_VERSION        0.09
 ENV RESTY_LRUCACHE_VERSION    0.14
 
 # Add Lua paths
-ENV LUA_PATH="${LUA_LIB}/?.lua;./?.lua;/usr/local/share/luajit-2.1/?.lua;/usr/local/share/lua/5.1/?.lua;/usr/local/share/lua/5.1/?/init.lua"
+ENV LUA_PATH="${LUA_LIB}/?.lua;${HOME_DIR}/luajit/share/luajit-2.1/?.lua;./?.lua;/usr/local/share/luajit-2.1/?.lua;/usr/local/share/lua/5.1/?.lua;/usr/local/share/lua/5.1/?/init.lua"
 ENV LUA_CPATH="${LUA_MOD}/?.so;./?.so;/usr/local/lib/lua/5.1/?.so;/usr/local/lib/lua/5.1/loadall.so"
 
 # Switching to root to install the required packages
