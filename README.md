@@ -4,20 +4,25 @@ Built on **Rocky Linux 9**, this repository provides a custom Docker image for F
 
 ## Features
 
-- **Lua scripting** via LuaJIT and ngx_lua module, allowing high-performance dynamic request handling and NGINX configuration.
-- **PCRE2 support** for enhanced regular expression capabilities.
-- **QUIC and HTTP/3** support, ensuring faster, reliable connections with modern internet protocols using OpenSSL.
+- **Lua Scripting**: Use LuaJIT with the lua-nginx-module for dynamic request handling and flexible configuration.
+- **PCRE2 Support**: Enhanced regular expressions with JIT compilation for improved performance.
+- **QUIC and HTTP/3 Support**: Faster, reliable connections with modern protocols.
+- **Brotli Compression**: Efficient compression for faster loading of static resources.
 
 ## Components
 
-* ​**FreeNGINX**​: Version `1.27.4`
-* ​**LuaJIT**​: Version `2.1-20240815`
-* ​**PCRE2**​: Version `10.44`
-* ​**OpenSSL**​: Version `3.3.2`
+* **FreeNGINX**: Version `1.27.4`
+* **LuaJIT**: Version `2.1-20240815`
+* **PCRE2**: Version `10.44`
+* **OpenSSL**: Version `3.3.2`
 * **zlib**: Version `1.3.1`
-* ​**lua-nginx-module**​: Version `0.10.27`
-* ​**lua-resty-core**​: Version `0.1.29`
-* ​**lua-resty-lrucache**​: Version `0.14`
+* **brotli**: Version `1.0.9`
+* **ngx_brotli**: Version `master`
+* **lua-nginx-module**: Version `0.10.27`
+* **lua-resty-core**: Version `0.1.29`
+* **lua-resty-lock**: Version `0.09`
+* **lua-resty-lrucache**: Version `0.14`
+* **lua-cjson**: Version `2.1.0.14`
   
 ## Quick Start
 
