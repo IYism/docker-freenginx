@@ -9,26 +9,33 @@ ENV HOME_DIR   /opt/freenginx
 ENV DATA_DIR   /var/lib/nginx
 ENV LOGS_DIR   /var/log/nginx
 ENV LUA_LIB    ${HOME_DIR}/lualib
-ENV LUA_MOD    ${HOME_DIR}/modules
+ENV LUA_MOD    ${HOME_DIR}/luamod
 ENV BUILD_DIR  /tmp/.build.nginx
 
 # Components
-ENV FREENGINX_VERSION         1.27.4
-ENV ZLIB_VERSION              1.3.1
-ENV PCRE2_VERSION             10.44
-ENV BROTLI_VERSION            1.0.9
-ENV NGX_BROTLI_VERSION        master
-ENV OPENSSL_VERSION           3.3.2
-ENV LUAJIT_VERSION            2.1-20240815
-ENV LUA_NGINX_VERSION         0.10.27
-ENV LUA_CJSON_VERSION         2.1.0.14
-ENV RESTY_CORE_VERSION        0.1.29
-ENV RESTY_LOCK_VERSION        0.09
-ENV RESTY_LRUCACHE_VERSION    0.14
+ENV FREENGINX_VERSION       1.27.4
+ENV ZLIB_VERSION            1.3.1
+ENV PCRE2_VERSION           10.44
+ENV GEOIP_VERSION           1.6.12
+ENV BROTLI_VERSION          1.0.9
+ENV NGX_BROTLI_VERSION      master
+ENV NGX_GEOIP2_VERSION      3.4
+ENV NGX_DEVEL_KIT_VERSION   0.3.3
+ENV OPENSSL_VERSION         3.3.2
+ENV LUAJIT_VERSION          2.1-20240815
+ENV ECHO_NGINX_VERSION      0.63
+ENV LUA_NGINX_VERSION       0.10.27
+ENV LUA_CJSON_VERSION       2.1.0.14
+ENV RESTY_CORE_VERSION      0.1.29
+ENV RESTY_LOCK_VERSION      0.09
+ENV RESTY_LRUCACHE_VERSION  0.14
 
 # Add Lua paths
 ENV LUA_PATH="${LUA_LIB}/?.lua;${HOME_DIR}/luajit/share/luajit-2.1/?.lua;./?.lua;/usr/local/share/luajit-2.1/?.lua;/usr/local/share/lua/5.1/?.lua;/usr/local/share/lua/5.1/?/init.lua"
 ENV LUA_CPATH="${LUA_MOD}/?.so;./?.so;/usr/local/lib/lua/5.1/?.so;/usr/local/lib/lua/5.1/loadall.so"
+
+# Add custom compiled binaries to the PATH
+ENV PATH=$HOME_DIR/geoip/bin:$HOME_DIR/luajit/bin:$HOME_DIR/openssl33/bin:$HOME_DIR/pcre2/bin:$PATH
 
 # Switching to root to install the required packages
 USER root
@@ -45,8 +52,10 @@ RUN set -x \
 # Mkdir basedir
     && mkdir -p ${LUA_LIB} ${LUA_MOD} \
 # Install development packages
-    && dnf install -y make gcc gcc-c++ perl diffutils \
-        gd-devel brotli-devel libxslt-devel libxml2-devel \
+    && dnf install -y dnf-plugins-core \
+    && dnf config-manager --enable devel \
+    && dnf install -y make gcc gcc-c++ perl diffutils autoconf automake libtool procps-ng \
+        gd-devel brotli-devel libxslt-devel libxml2-devel libmaxminddb-devel \
 # Install zlib
     && curl -LO --output-dir ${BUILD_DIR} https://www.zlib.net/zlib-${ZLIB_VERSION}.tar.gz \
     && tar zxf zlib-${ZLIB_VERSION}.tar.gz \
@@ -79,6 +88,27 @@ RUN set -x \
     && make -j`nproc` \
     && make install_sw \
     && cd ${BUILD_DIR} \
+# Install geoip-api-c
+    && curl -LJO --output-dir ${BUILD_DIR} https://github.com/maxmind/geoip-api-c/archive/refs/tags/v${GEOIP_VERSION}.tar.gz \
+    && tar zxf geoip-api-c-${GEOIP_VERSION}.tar.gz \
+    && cd geoip-api-c-${GEOIP_VERSION} \
+    && ./bootstrap \
+    && ./configure --prefix=/opt/freenginx/geoip \
+    && make \
+    && make install \
+    && cd ${BUILD_DIR} \
+# Download ngx_http_geoip2_module
+    && curl -LJO --output-dir ${BUILD_DIR} https://github.com/leev/ngx_http_geoip2_module/archive/refs/tags/${NGX_GEOIP2_VERSION}.tar.gz \
+    && tar zxf ngx_http_geoip2_module-${NGX_GEOIP2_VERSION}.tar.gz \
+    && cd ${BUILD_DIR} \
+# Download ngx_devel_kit
+    && curl -LJO --output-dir ${BUILD_DIR} https://github.com/vision5/ngx_devel_kit/archive/refs/tags/v${NGX_DEVEL_KIT_VERSION}.tar.gz \
+    && tar zxf ngx_devel_kit-${NGX_DEVEL_KIT_VERSION}.tar.gz \
+    && cd ${BUILD_DIR} \
+# Download echo-nginx-module
+    && curl -LJO --output-dir ${BUILD_DIR} https://github.com/openresty/echo-nginx-module/archive/refs/tags/v${ECHO_NGINX_VERSION}.tar.gz \
+    && tar zxf echo-nginx-module-${ECHO_NGINX_VERSION}.tar.gz \
+    && cd ${BUILD_DIR} \
 # Install luajit
     && curl -LJO --output-dir ${BUILD_DIR} https://github.com/openresty/luajit2/archive/refs/tags/v${LUAJIT_VERSION}.tar.gz \
     && tar zxf luajit2-${LUAJIT_VERSION}.tar.gz \
@@ -90,7 +120,7 @@ RUN set -x \
     && curl -LJO --output-dir ${BUILD_DIR} https://github.com/openresty/lua-nginx-module/archive/refs/tags/v${LUA_NGINX_VERSION}.tar.gz \
     && tar zxf lua-nginx-module-${LUA_NGINX_VERSION}.tar.gz \
     && cd ${BUILD_DIR} \
-# Install ngx_brotli
+# Download ngx_brotli
     && curl -LJO --output-dir ${BUILD_DIR} https://github.com/google/ngx_brotli/archive/refs/heads/${NGX_BROTLI_VERSION}.tar.gz \
     && tar zxf ngx_brotli-${NGX_BROTLI_VERSION}.tar.gz \
     && curl -LJO --output-dir ${BUILD_DIR} https://github.com/google/brotli/archive/refs/tags/v${BROTLI_VERSION}.tar.gz \
@@ -105,8 +135,9 @@ RUN set -x \
     && export LUAJIT_INC=${HOME_DIR}/luajit/include/luajit-2.1 \
     && ./configure \
        --prefix=${HOME_DIR}/nginx \
-       --conf-path=${CONF_DIR}/nginx.conf \
        --sbin-path=/usr/sbin/nginx \
+       --conf-path=${CONF_DIR}/nginx.conf \
+       --modules-path=${HOME_DIR}/nginx/modules \
        --error-log-path=${LOGS_DIR}/error.log \
        --http-log-path=${LOGS_DIR}/access.log \
        --pid-path=/run/nginx.pid \
@@ -118,41 +149,48 @@ RUN set -x \
        --http-scgi-temp-path=${DATA_DIR}/scgi_temp \
        --user=$USER \
        --group=$USER \
-       --with-compat \
-       --with-file-aio \
        --with-threads \
-       --with-http_addition_module \
-       --with-http_auth_request_module \
-       --with-http_dav_module \
-       --with-http_flv_module \
-       --with-http_gunzip_module \
-       --with-http_gzip_static_module \
-       --with-http_mp4_module \
-       --with-http_random_index_module \
-       --with-http_realip_module \
-       --with-http_secure_link_module \
-       --with-http_slice_module \
+       --with-file-aio \
        --with-http_ssl_module \
-       --with-http_stub_status_module \
-       --with-http_sub_module \
        --with-http_v2_module \
        --with-http_v3_module \
+       --with-http_realip_module \
+       --with-http_addition_module \
        --with-http_xslt_module \
        --with-http_image_filter_module \
+       --with-http_geoip_module \
+       --with-http_sub_module \
+       --with-http_dav_module \
+       --with-http_flv_module \
+       --with-http_mp4_module \
+       --with-http_gunzip_module \
+       --with-http_gzip_static_module \
+       --with-http_auth_request_module \
+       --with-http_random_index_module \
+       --with-http_secure_link_module \
        --with-http_degradation_module \
+       --with-http_slice_module \
+       --with-http_stub_status_module \
+       --with-mail \
+       --with-mail_ssl_module \
        --with-stream \
-       --with-stream_realip_module \
        --with-stream_ssl_module \
+       --with-stream_realip_module \
+       --with-stream_geoip_module \
        --with-stream_ssl_preread_module \
+       --with-compat \
        --with-pcre \
        --with-pcre-jit \
+       --add-module=${BUILD_DIR}/ngx_devel_kit-${NGX_DEVEL_KIT_VERSION} \
+       --add-module=${BUILD_DIR}/echo-nginx-module-${ECHO_NGINX_VERSION} \
+       --add-module=${BUILD_DIR}/ngx_http_geoip2_module-${NGX_GEOIP2_VERSION} \
        --add-module=${BUILD_DIR}/ngx_brotli-${NGX_BROTLI_VERSION} \
        --add-module=${BUILD_DIR}/lua-nginx-module-${LUA_NGINX_VERSION} \
-       --with-cc-opt="-O2 -DNGX_LUA_ABORT_AT_PANIC -I${HOME_DIR}/zlib/include -I${HOME_DIR}/pcre2/include -I${HOME_DIR}/openssl33/include" \
-       --with-ld-opt="-Wl,-rpath,${HOME_DIR}/luajit/lib -L${HOME_DIR}/zlib/lib -L${HOME_DIR}/pcre2/lib -L${HOME_DIR}/openssl33/lib64 -Wl,-rpath,${HOME_DIR}/zlib/lib:${HOME_DIR}/pcre2/lib:${HOME_DIR}/openssl33/lib64" \
-   && make -j`nproc` \
-   && make install \
-   && cd ${BUILD_DIR} \
+       --with-cc-opt="-fPIE -O2 -DNGX_LUA_ABORT_AT_PANIC -I${HOME_DIR}/zlib/include -I${HOME_DIR}/geoip/include -I${HOME_DIR}/pcre2/include -I${HOME_DIR}/openssl33/include" \
+       --with-ld-opt="-pie -Wl,-rpath,${HOME_DIR}/luajit/lib -L${HOME_DIR}/zlib/lib -L${HOME_DIR}/geoip/lib -L${HOME_DIR}/pcre2/lib -L${HOME_DIR}/openssl33/lib64 -Wl,-rpath,${HOME_DIR}/zlib/lib:${HOME_DIR}/geoip/lib:${HOME_DIR}/pcre2/lib:${HOME_DIR}/openssl33/lib64" \
+    && make -j`nproc` \
+    && make install \
+    && cd ${BUILD_DIR} \
 # Install lua-resty-core
     && curl -LJO --output-dir ${BUILD_DIR} https://github.com/openresty/lua-resty-core/archive/refs/tags/v${RESTY_CORE_VERSION}.tar.gz \
     && tar zxf lua-resty-core-${RESTY_CORE_VERSION}.tar.gz \
@@ -177,12 +215,14 @@ RUN set -x \
 # Clean tmpdata
     && cd ${HOME_DIR} \
     && rm -fr ${BUILD_DIR} \
-    && dnf remove -y gcc gcc-c++ make perl \
+    && dnf config-manager --disable devel \
+    && dnf remove -y make gcc gcc-c++ perl diffutils autoconf automake libtool dnf-plugins-core \
+    && dnf remove -y --noautoremove gd-devel brotli-devel libxslt-devel libxml2-devel libmaxminddb-devel \
     && dnf clean all
 
 
 WORKDIR ${HOME_DIR}
-EXPOSE 80
+EXPOSE 80 443
 
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY vhost.default.conf /etc/nginx/conf.d/default.conf
