@@ -50,7 +50,14 @@ This will start FreeNGINX with the default configuration.
 
 You can customize the NGINX configuration by mounting your own configuration files into the container:
 ```sh
-docker run -d -v /path/to/your/nginx.conf:/etc/nginx/nginx.conf --name freenginx freenginx:latest
+docker run -d \
+  -v /etc/nginx:/etc/nginx \
+  -v /data/public:/data/public \
+  -p 80:80/tcp \
+  -p 443:443/tcp \
+  -p 443:443/udp \
+  --name freenginx \
+  freenginx:latest
 ```
 
 You can also include custom Lua scripts, or other configuration options as needed.
