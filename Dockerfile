@@ -1,27 +1,29 @@
-# Dockerfile - Rocky Linux 9
-FROM rockylinux:9
+# Dockerfile - FreeNginx
 
+ARG USER=nginx
+ARG CONF_DIR=/etc/nginx
+ARG HOME_DIR=/opt/freenginx
+ARG DATA_DIR=/var/lib/nginx
+ARG LOGS_DIR=/var/log/nginx
+ARG LUA_LIB=${HOME_DIR}/lualib
+ARG LUA_MOD=${HOME_DIR}/luamod
+ARG BUILD_DIR=/tmp/.build.nginx
+
+
+# Build Stage
+FROM rockylinux:9 AS builder
 LABEL maintainer="iYism <admin@iyism.com>"
 
-ENV USER       nginx
-ENV CONF_DIR   /etc/nginx
-ENV HOME_DIR   /opt/freenginx
-ENV DATA_DIR   /var/lib/nginx
-ENV LOGS_DIR   /var/log/nginx
-ENV LUA_LIB    ${HOME_DIR}/lualib
-ENV LUA_MOD    ${HOME_DIR}/luamod
-ENV BUILD_DIR  /tmp/.build.nginx
-
-# Components
+# Component versions
 ENV FREENGINX_VERSION       1.27.4
 ENV ZLIB_VERSION            1.3.1
 ENV PCRE2_VERSION           10.44
+ENV OPENSSL_VERSION         3.3.2
 ENV GEOIP_VERSION           1.6.12
 ENV BROTLI_VERSION          1.0.9
 ENV NGX_BROTLI_VERSION      master
 ENV NGX_GEOIP2_VERSION      3.4
 ENV NGX_DEVEL_KIT_VERSION   0.3.3
-ENV OPENSSL_VERSION         3.3.2
 ENV LUAJIT_VERSION          2.1-20240815
 ENV ECHO_NGINX_VERSION      0.63
 ENV LUA_NGINX_VERSION       0.10.27
@@ -30,12 +32,15 @@ ENV RESTY_CORE_VERSION      0.1.29
 ENV RESTY_LOCK_VERSION      0.09
 ENV RESTY_LRUCACHE_VERSION  0.14
 
-# Add Lua paths
-ENV LUA_PATH="${LUA_LIB}/?.lua;${HOME_DIR}/luajit/share/luajit-2.1/?.lua;./?.lua;/usr/local/share/luajit-2.1/?.lua;/usr/local/share/lua/5.1/?.lua;/usr/local/share/lua/5.1/?/init.lua"
-ENV LUA_CPATH="${LUA_MOD}/?.so;./?.so;/usr/local/lib/lua/5.1/?.so;/usr/local/lib/lua/5.1/loadall.so"
-
-# Add custom compiled binaries to the PATH
-ENV PATH=$HOME_DIR/geoip/bin:$HOME_DIR/luajit/bin:$HOME_DIR/openssl33/bin:$HOME_DIR/pcre2/bin:$PATH
+# Set environment variables for the build stage
+ARG USER \
+    CONF_DIR \
+    HOME_DIR \
+    DATA_DIR \
+    LOGS_DIR \
+    LUA_LIB \
+    LUA_MOD \
+    BUILD_DIR
 
 # Switching to root to install the required packages
 USER root
@@ -43,12 +48,6 @@ USER root
 WORKDIR ${BUILD_DIR}
 
 RUN set -x \
-# Enable http_proxy
-    #&& export http_proxy=http://127.0.0.1:1080 https_proxy=http://127.0.0.1:1080 \
-# Add nginx user
-    && getent group $USER >/dev/null || groupadd -r $USER -g 101 \
-    && getent passwd $USER >/dev/null || useradd -r -u 101 -g $USER -s /sbin/nologin \
-        -d ${DATA_DIR} -m -c "$USER user" $USER \
 # Mkdir basedir
     && mkdir -p ${LUA_LIB} ${LUA_MOD} \
 # Install development packages
@@ -220,13 +219,52 @@ RUN set -x \
     && dnf remove -y --noautoremove gd-devel brotli-devel libxslt-devel libxml2-devel libmaxminddb-devel \
     && dnf clean all
 
-
-WORKDIR ${HOME_DIR}
-EXPOSE 80 443
-
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY vhost.default.conf /etc/nginx/conf.d/default.conf
 
+
+# Runtime Stage
+FROM rockylinux:9-minimal
+
+# Set environment variables for the runtime stage
+ARG USER \
+    CONF_DIR \
+    HOME_DIR \
+    DATA_DIR \
+    LOGS_DIR \
+    LUA_LIB \
+    LUA_MOD
+
+COPY --from=builder ${CONF_DIR} ${CONF_DIR}
+COPY --from=builder ${HOME_DIR} ${HOME_DIR}
+COPY --from=builder /usr/sbin/nginx /usr/sbin/nginx
+
+RUN set -x \
+# Add nginx user
+    && getent group $USER >/dev/null || groupadd -r $USER -g 101 \
+    && getent passwd $USER >/dev/null || useradd -r -u 101 -g $USER -s /sbin/nologin \
+        -d ${DATA_DIR} -m -c "$USER user" $USER \
+# Create the directories required for FreeNGINX dependencies
+    && mkdir -p ${DATA_DIR} ${LOGS_DIR} \
+# Install required packages
+    && microdnf install -y gd brotli libxslt libxml2 libmaxminddb \
+    && microdnf clean all
+
+# Add Lua paths
+ENV LUA_PATH="${LUA_LIB}/?.lua;${HOME_DIR}/luajit/share/luajit-2.1/?.lua;./?.lua;/usr/local/share/luajit-2.1/?.lua;/usr/local/share/lua/5.1/?.lua;/usr/local/share/lua/5.1/?/init.lua"
+ENV LUA_CPATH="${LUA_MOD}/?.so;./?.so;/usr/local/lib/lua/5.1/?.so;/usr/local/lib/lua/5.1/loadall.so"
+
+# Add custom compiled binaries to the PATH
+ENV PATH=$HOME_DIR/geoip/bin:$HOME_DIR/luajit/bin:$HOME_DIR/openssl33/bin:$HOME_DIR/pcre2/bin:$PATH
+
+# Set the working directory to the FreeNGINX home directory
+WORKDIR ${HOME_DIR}
+
+# Expose Nginx ports
+EXPOSE 80 443
+
+# Start the Nginx server
 CMD ["/usr/sbin/nginx", "-g", "daemon off;"]
 
+# Set the signal that will be used to stop the container
 STOPSIGNAL SIGQUIT
