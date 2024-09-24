@@ -62,6 +62,74 @@ docker run -d \
 
 You can also include custom Lua scripts, or other configuration options as needed.
 
+### HTTP/2, QUIC + HTTP/3 Configuration
+
+To enable HTTP/2, QUIC and HTTP/3 in FreeNGINX, you typically configure your server block as follows:
+```sh
+server {
+    listen 443 ssl reuseport;
+    listen [::]:443 ssl reuseport;
+    listen 443 quic reuseport;
+    listen [::]:443 quic reuseport;
+
+    http2 on;
+    http3 on;
+
+    server_name localhost;
+    index index.html index.htm;
+
+    ssl_certificate /path/to/signed_cert_plus_intermediates;
+    ssl_certificate_key /path/to/private_key;
+
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:16m;
+
+    # openssl dhparam -out /path/to/dhparam.pem 2048
+    ssl_dhparam /path/to/dhparam.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-CHACHA20-POLY1305";
+
+    ssl_conf_command Ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256;
+    ssl_prefer_server_ciphers on;
+
+    # enable acceptance of 0-RTT data in TLS 1.3
+    #ssl_early_data on;
+
+    # OCSP stapling
+    ssl_stapling on;
+    ssl_stapling_verify on;
+
+    # replace with the IP address of your resolver
+    resolver 1.1.1.1 8.8.8.8 valid=300s;
+    resolver_timeout 15s;
+
+    # used to advertise the availability of HTTP/3
+    add_header Alt-Svc 'h3=":443"; ma=86400';
+
+    # adds a custom request ID header for request tracing; always adds this header
+    add_header X-Request-ID $request_id always;
+
+    # restricts frame embedding to the same origin to prevent clickjacking attacks
+    add_header X-Frame-Options "SAMEORIGIN";
+
+    # enables XSS protection to prevent cross-site scripting attacks, using block mode
+    add_header X-XSS-Protection "1; mode=block";
+
+    # prevents MIME type sniffing, ensuring the browser handles the response as declared
+    add_header X-Content-Type-Options "nosniff";
+
+    # enables HTTP Strict Transport Security (HSTS), instructing browsers to only access the site via HTTPS for 1 year
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    location / {
+        root /your/data;
+    }
+
+    access_log /var/log/nginx/access.log main;
+}
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues, pull requests, or suggestions.
